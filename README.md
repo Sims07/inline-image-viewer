@@ -1,9 +1,5 @@
 # Visionneuse Interactive pour Schémas d'Architecture SI (Mega Hopex Viewport)
 
-[![JavaScript](https://img.shields.io/badge/Language-JavaScript-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/fr/docs/Web/JavaScript)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Purpose: Enterprise Architecture](https://img.shields.io/badge/Purpose-Solution%20Architecture-blue)](#)
-
 Ce script JavaScript applicatif résout les contraintes d'ergonomie et d'affichage des très grands diagrammes de cartographie SI (générés via Mega Hopex ou des outils similaires) au sein des portails web d'entreprise. Il remplace le défilement natif fastidieux par une interface fluide en plein écran intégrant des fonctions de zoom, de déplacement à la souris (Pan & Zoom) ainsi que le maintien dynamique des liens hypertexte (Image Maps).
 
 ## 🚀 Fonctionnalités
@@ -20,19 +16,19 @@ Ce script JavaScript applicatif résout les contraintes d'ergonomie et d'afficha
 
 ---
 
-## 🛠️ Utilisation et Injection (Console F12)
+## 🛠️ Installation (Recommandé)
 
-Le script est conçu pour être injecté à la volée dans votre navigateur sans modification de l'infrastructure du site.
+Pour contourner les limitations de saisie et de formatage des navigateurs d'entreprise (Edge/Chrome), utilisez la page d'installation automatisée intégrée.
 
-1. Connectez-vous sur votre portail de Cartographie SI.
-2. Naviguez vers le diagramme ou schéma d'architecture que vous souhaitez analyser.
-3. Ouvrez la console développeur de votre navigateur :
-   - Sur Windows / Linux : `F12` ou `Ctrl + Maj + I`
-   - Sur Mac : `Cmd + Option + I`
-4. Copiez l'intégralité du code contenu dans le fichier `cartosi-viewer.js` de ce dépôt.
-5. Collez-le dans l'onglet **Console**, puis validez en appuyant sur `Entrée`.
+1. Ouvrez votre page d'installation **https://sims07.github.io/inline-image-viewer/install.html** (déployée via vos GitHub Pages ou serveur interne).
+2. Affichez votre barre des favoris si ce n'est pas déjà fait (`Ctrl + Maj + B` sur Windows ou `Cmd + Maj + B` sur Mac).
+3. **Glissez et déposez (Drag & Drop)** le bouton bleu **👁️ Visionneuse Carto SI** directement dans votre barre de favoris.
+4. Allez sur votre instance de Cartographie SI, puis cliquez sur le favori pour activer instantanément l'outil.
 
-La visionneuse s'initialisera automatiquement par-dessus la page.
+> 🔄 **Mise à jour transparente :** La page d'installation charge dynamiquement la dernière version du fichier `cartosi-viewer.js` et purge les commentaires à la volée. Inutile de recréer votre favori lors des prochaines mises à jour du code source !
+
+### Alternative : Injection Manuelle (Console F12)
+Si vous ne disposez pas d'un hébergement pour la page d'installation, vous pouvez copier le code du fichier `cartosi-viewer.js`, ouvrir la console de votre navigateur (`F12` -> onglet **Console**) sur votre portail SI, le coller et appuyer sur `Entrée`.
 
 ---
 
@@ -54,8 +50,8 @@ Le script s'appuie sur la structure DOM native du portail d'architecture :
 1. **Ciblage agnostic des IDs :** Il détecte la vue active en recherchant la classe CSS d'état de visibilité `.diagrammeDisplay` injectée par le framework applicatif d'origine plutôt que de cibler un identifiant technique (`#id`) rigide.
 2. **Clonage du nœud graphique :** L'élément `<img>` original est cloné en mémoire pour éviter d'altérer les écouteurs d'événements natifs du site parent.
 3. **Calcul matriciel affine :** À chaque interaction utilisateur, la fonction de transformation géométrique applique la formule suivante sur l'ensemble du tableau de points géodésiques des balises HTML `<area>` :
-   <span class="math">X' = X \times Scale + Tx</span>  
-   <span class="math">Y' = Y \times Scale + Ty</span>
+   X' = X × Scale + Tx  
+   Y' = Y × Scale + Ty
 
 ---
 
