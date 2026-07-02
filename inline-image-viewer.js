@@ -1,283 +1,235 @@
-(() => {
-    // Éviter les injections multiples si le script est relancé
-    if (window.__cartoPanZoomInstance) {
-        window.__cartoPanZoomInstance.destroy();
+(function() {
+    var context = {container:'', win: '', doc:''};
+    var { container, win, doc } = context;
+    // ==========================================
+    // 1. RECHERCHE DE LA FRAME CONTENANT LE SCHÉMA
+    // ==========================================
+    function findDiagramContext(root = window.top) {
+        try {
+            const found = root.document.querySelector('.diagrammeDisplay');
+            if (found) {
+                return { container: found, win: root, doc: root.document };
+            }
+            // Fouille récursive des cadres (frames / iframes)
+            for (let i = 0; i < root.frames.length; i++) {
+                const innerFound = findDiagramContext(root.frames[i]);
+                if (innerFound) return innerFound;
+            }
+        } catch (e) {
+            // Sécurité cross-origin
+        }
+        return null;
     }
 
-    // Config géométrie
-    const MIN_SCALE = 0.05; 
-    const MAX_SCALE = 6; 
-    const ZOOM_STEP = 1.1;
-    const FIT_MARGIN = 40;
+    context = findDiagramContext();
+    if (!context) {
+        console.error("Conteneur .diagrammeDisplay introuvable dans aucune des frames.");
+        alert("Aucun schéma d'architecture détecté sur la page.");
+        return;
+    }
+    refreshContext();
+    
 
-    let scale = 1, tx = 0, ty = 0;
-    let dragging = false;
-    let lastX = 0, lastY = 0;
-    let currentHost = null;
-    let currentMap = null;
-    let imgClone = null;
-
-    // 1. Recherche du diagramme actif
-    function getActiveDiagramContainer() {
-        const active = document.querySelector('.diagrammeDisplay');
-        if (active) return active; 
-        const all = [...document.querySelectorAll('.diagramme-img')];
-        return all.find(d => d.offsetParent !== null) || all[0] || null;
+    // Nettoyage de l'ancienne instance si elle existe dans cette frame
+    if (win.__cartoPanZoomInstance) {
+        win.__cartoPanZoomInstance.destroy();
     }
 
-    // 2. Création de la structure HTML de la Popup (Modal)
-    const modal = document.createElement('div');
-    modal.id = 'carto-panzoom-modal';
-    Object.assign(modal.style, {
-        position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh',
-        backgroundColor: '#f5f5f7', zIndex: '999999', display: 'none',
-        flexDirection: 'column', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
+    // ==========================================
+    // 2. INJECTION DU BOUTON FLOTTANT DANS LA FRAME
+    // ==========================================
+    const floatBtn = doc.createElement('button');
+    floatBtn.innerText = '👁️ Visionneuse Carto';
+    Object.assign(floatBtn.style, {
+        position: 'fixed', bottom: '20px', right: '20px', 
+        zIndex: '2147483647', // Priorité maximale dans le cadre
+        padding: '12px 22px', backgroundColor: '#007aff', color: '#fff',
+        border: '2px solid #ffffff', borderRadius: '50px', cursor: 'pointer',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.4)', fontWeight: 'bold',
+        fontFamily: 'Segoe UI, -apple-system, sans-serif', fontSize: '13px',
+        transition: 'transform 0.2s, background-color 0.2s',
+        display: 'block'
     });
+    floatBtn.onmouseover = () => floatBtn.style.backgroundColor = '#0062cc';
+    floatBtn.onmouseout = () => floatBtn.style.backgroundColor = '#007aff';
+    doc.body.appendChild(floatBtn);
+
+    // ==========================================
+    // 3. INJECTION DE LA MODALE PLEIN ÉCRAN
+    // ==========================================
+    const modal = doc.createElement('div');
+    Object.assign(modal.style, {
+        position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+        backgroundColor: 'rgba(20, 20, 20, 0.97)', zIndex: '2147483646',
+        display: 'none', flexDirection: 'column', overflow: 'hidden',
+        fontFamily: 'Segoe UI, -apple-system, sans-serif'
+    });
+    doc.body.appendChild(modal);
 
     // Barre d'outils supérieure
-    const toolbar = document.createElement('div');
+    const toolbar = doc.createElement('div');
     Object.assign(toolbar.style, {
-        height: '50px', backgroundColor: '#ffffff', borderBottom: '1px solid #e0e0e0',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 20px', boxShaddow: '0 2px 4px rgba(0,0,0,0.05)', userSelect: 'none'
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '10px 20px', backgroundColor: '#1c1c1e', color: '#fff',
+        borderBottom: '1px solid #2c2c2e'
     });
+    modal.appendChild(toolbar);
 
-    const title = document.createElement('div');
-    title.innerText = 'Visionneuse d\'Architecture SI (Mega Hopex Mode)';
+    const title = doc.createElement('div');
+    title.innerText = 'Visionneuse Cartographie SI — Mode Plein Écran';
     title.style.fontWeight = '600';
-    title.style.color = '#333';
+    toolbar.appendChild(title);
 
-    const btnContainer = document.createElement('div');
-    btnContainer.style.display = 'flex';
-    btnContainer.style.gap = '10px';
+    const controls = doc.createElement('div');
+    controls.style.display = 'flex'; controls.style.gap = '10px';
+    toolbar.appendChild(controls);
 
-    function createButton(text, bg, fg) {
-        const btn = document.createElement('button');
-        btn.innerText = text;
+    const btnFit = doc.createElement('button'); btnFit.innerText = 'Ajuster (F)';
+    const btnClose = doc.createElement('button'); btnClose.innerText = 'Fermer (Échap)';
+
+    [btnFit, btnClose].forEach(btn => {
         Object.assign(btn.style, {
-            padding: '6px 14px', border: 'none', borderRadius: '4px', cursor: 'pointer',
-            backgroundColor: bg, color: fg, fontWeight: '500', fontSize: '13px',
-            transition: 'background-color 0.2s'
+            padding: '6px 14px', backgroundColor: '#2c2c2e', color: '#fff',
+            border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500'
         });
-        return btn;
+    });
+    btnClose.style.backgroundColor = '#ff3b30';
+    controls.appendChild(btnFit);
+    controls.appendChild(btnClose);
+
+    // Zone de Pan & Zoom
+    const viewport = doc.createElement('div');
+    viewport.style.cssText = 'flex: 1; position: relative; overflow: hidden; cursor: grab;';
+    modal.appendChild(viewport);
+
+    const content = doc.createElement('div');
+    content.style.cssText = 'position: absolute; transform-origin: 0 0; left: 0px; top: 0px;';
+    viewport.appendChild(content);
+
+    // ==========================================
+    // 4. MOTEUR DE PAN & ZOOM
+    // ==========================================
+    let scale = 1, tx = 0, ty = 0, isDragging = false, startX = 0, startY = 0;
+    let imgClone = null, currentMap = null;
+
+    function updateTransform() {
+        content.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
     }
 
-    const btnFit = createButton('Ajuster (F)', '#007aff', '#fff');
-    const btnMinimize = createButton('Réduire', '#8e8e93', '#fff');
-    const btnClose = createButton('Fermer (Échap)', '#ff3b30', '#fff');
-
-    btnContainer.append(btnFit, btnMinimize, btnClose);
-    toolbar.append(title, btnContainer);
-
-    // Viewport de visualisation
-    const viewport = document.createElement('div');
-    Object.assign(viewport.style, {
-        flex: '1', overflow: 'hidden', position: 'relative',
-        cursor: 'default', touchAction: 'none', userSelect: 'none'
+    viewport.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDragging = true; viewport.style.cursor = 'grabbing';
+        startX = e.clientX - tx; startY = e.clientY - ty;
     });
 
-    const content = document.createElement('div');
-    Object.assign(content.style, {
-        position: 'absolute', left: '0px', top: '0px',
-        transformOrigin: '0 0', willChange: 'transform'
+    win.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        tx = e.clientX - startX; ty = e.clientY - startY;
+        updateTransform();
     });
 
-    viewport.appendChild(content);
-    modal.append(toolbar, viewport);
-    document.body.appendChild(modal);
+    win.addEventListener('mouseup', () => { isDragging = false; viewport.style.cursor = 'grab'; });
 
-    // Bouton d'activation flottant permanent (en bas à droite du site web)
-    const floatBtn = document.createElement('button');
-    floatBtn.innerHTML = '👁️ Ouvrir la visionneuse';
-    Object.assign(floatBtn.style, {
-        position: 'fixed', bottom: '20px', right: '20px', zIndex: '999998',
-        padding: '12px 20px', backgroundColor: '#007aff', color: '#fff',
-        border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: '600',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontSize: '14px'
-    });
-    document.body.appendChild(floatBtn);
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left; const mouseY = e.clientY - rect.top;
+        const zoom = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+        if (scale * zoom < 0.1 || scale * zoom > 10) return;
+        tx = mouseX - (mouseX - tx) * zoom;
+        ty = mouseY - (mouseY - ty) * zoom;
+        scale *= zoom;
+        updateTransform();
+    }, { passive: false });
 
-    // 3. Logique d'initialisation du schéma actif
-    function loadActiveDiagram() {
-        currentHost = getActiveDiagramContainer();
-        if (!currentHost) {
-            alert('Aucun schéma d\'architecture détecté sur la page active.');
-            return false;
+    function fitToScreen() {
+        if (!imgClone || imgClone.naturalWidth === 0) return;
+        scale = Math.min(viewport.clientWidth / imgClone.naturalWidth, viewport.clientHeight / imgClone.naturalHeight, 1);
+        tx = (viewport.clientWidth - imgClone.naturalWidth * scale) / 2;
+        ty = (viewport.clientHeight - imgClone.naturalHeight * scale) / 2;
+        updateTransform();
+    }
+
+    // ==========================================
+    // 5. GESTION DES ÉVÉNEMENTS D'OUVERTURE
+    // ==========================================
+    function loadDiagram() {
+        const originalImg = container.querySelector('img[usemap]');
+        if (!originalImg) { 
+            alert("Image du diagramme introuvable dans le conteneur."); 
+            return false; 
         }
-
-        const originalImg = currentHost.querySelector('img[usemap]');
-        if (!originalImg) {
-            alert('Impossible de trouver l\'image du diagramme.');
-            return false;
-        }
-
-        // Nettoyage de l'ancien contenu du viewport
+        
         content.innerHTML = '';
-
-        // Clonage de l'image d'origine pour préserver l'état du DOM
         imgClone = originalImg.cloneNode(true);
-        Object.assign(imgClone.style, {
-            maxWidth: 'unset', width: 'auto', height: 'auto', display: 'block'
-        });
-
-        // Gestion de l'Image Map (zones cliquables)
+        Object.assign(imgClone.style, { maxWidth: 'unset', width: 'auto', height: 'auto', display: 'block' });
+        
         const mapName = originalImg.getAttribute('usemap');
-        const useMap = mapName && mapName.trim();
-        currentMap = useMap ? document.querySelector(`map[name="${useMap.slice(1)}"]`) : null;
-
-        if (currentMap) {
-            // Sauvegarde des coordonnées brutes d'origine si non fait
-            const areas = currentMap.querySelectorAll('area[coords]');
-            areas.forEach(a => {
-                if (!a.dataset.rawCoords) a.dataset.rawCoords = a.getAttribute('coords') || '';
-            });
-            // On s'assure que la map est bien rattachée au DOM de la page
-            if (useMap) imgClone.setAttribute('usemap', useMap);
+        if (mapName) {
+            currentMap = doc.querySelector('map[name="' + mapName.trim().slice(1) + '"]');
+            if (currentMap) {
+                const areas = currentMap.querySelectorAll('area[coords]');
+                areas.forEach(a => { if (!a.dataset.rawCoords) a.dataset.rawCoords = a.getAttribute('coords') || ''; });
+                imgClone.setAttribute('usemap', mapName);
+            }
         }
-
         content.appendChild(imgClone);
         return true;
     }
 
-    // 4. Moteur de rendu des transformations
-    function applyTransform() {
-        content.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-        if (currentMap) {
-            const areas = currentMap.querySelectorAll('area[coords]');
-            areas.forEach(a => {
-                const raw = a.dataset.rawCoords;
-                if (!raw) return;
-                const pts = raw.split(',').map(s => parseFloat(s.trim()));
-                for (let i = 0; i < pts.length; i += 2) {
-                    pts[i] = Math.round(pts[i] * scale + tx);
-                    pts[i + 1] = Math.round(pts[i + 1] * scale + ty);
-                }
-                a.setAttribute('coords', pts.join(','));
-            });
+    function openModal() { 
+        context = findDiagramContext();
+        if(context.container !== '') {
+            refreshContext();
         }
-    }
-
-    function getImageSize() {
-        return {
-            w: imgClone ? (imgClone.naturalWidth || imgClone.width) : 0,
-            h: imgClone ? (imgClone.naturalHeight || imgClone.height) : 0
-        };
-    }
-
-    function fitToScreen() {
-        const { w, h } = getImageSize();
-        const rect = viewport.getBoundingClientRect();
-        const vw = rect.width - FIT_MARGIN * 2;
-        const vh = rect.height - FIT_MARGIN * 2;
-        if (w <= 0 || h <= 0 || vw <= 0 || vh <= 0) return;
-
-        scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min(vw / w, vh / h)));
-        tx = Math.round((rect.width - w * scale) / 2);
-        ty = Math.round((rect.height - h * scale) / 2);
-        applyTransform();
-    }
-
-    function resetView() { scale = 1; tx = 0; ty = 0; applyTransform(); }
-
-    function zoomAt(clientX, clientY, direction) {
-        const rect = viewport.getBoundingClientRect();
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
-        const prevScale = scale;
-        const factor = direction > 0 ? (1 / ZOOM_STEP) : ZOOM_STEP;
-        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
-        tx = x - (x - tx) * (scale / prevScale);
-        ty = y - (y - ty) * (scale / prevScale);
-        applyTransform();
-    }
-
-    // 5. Gestion des Événements (Pan & Zoom)
-    viewport.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
-        dragging = true;
-        lastX = e.clientX; lastY = e.clientY;
-        viewport.style.cursor = 'grabbing';
-        e.preventDefault();
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if (!dragging) return;
-        tx += e.clientX - lastX;
-        ty += e.clientY - lastY;
-        lastX = e.clientX; lastY = e.clientY;
-        applyTransform();
-    });
-
-    window.addEventListener('mouseup', () => {
-        dragging = false;
-        viewport.style.cursor = 'default';
-    });
-
-    viewport.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        zoomAt(e.clientX, e.clientY, e.deltaY);
-    }, { passive: false });
-
-    viewport.addEventListener('dblclick', (e) => {
-        e.preventDefault();
-        zoomAt(e.clientX, e.clientY, e.shiftKey ? -1 : 1);
-    });
-
-    // 6. Gestion de l'affichage de la Modal
-    function openModal() {
-        if (loadActiveDiagram()) {
-            modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden'; // Bloque le scroll arrière-plan
-            setTimeout(fitToScreen, 50); // Laisse le temps au layout de calculer les dimensions
+        
+        if (!context) {
+            console.error("Conteneur .diagrammeDisplay introuvable dans aucune des frames.");
+            alert("Aucun schéma d'architecture détecté sur la page.");
+            return;
         }
+        if (loadDiagram()) { 
+            modal.style.display = 'flex'; 
+            doc.body.style.overflow = 'hidden'; 
+            floatBtn.style.display = 'none'; // Masque le bouton quand le plein écran est actif
+            setTimeout(fitToScreen, 50); 
+        } 
+    }
+    
+    function refreshContext() {
+        container = context.container;
+        win = context.win;
+        doc = context.doc;
     }
 
-    function closeModal() {
-        modal.style.display = 'none';
-        document.body.style.overflow = '';
-        // Restauration des coordonnées d'origine pour ne pas impacter le site natif
-        if (currentMap) {
-            currentMap.querySelectorAll('area[coords]').forEach(a => {
-                if (a.dataset.rawCoords) a.setAttribute('coords', a.dataset.rawCoords);
-            });
-        }
+    function closeModal() { 
+        modal.style.display = 'none'; 
+        doc.body.style.overflow = ''; 
+        floatBtn.style.display = 'block'; // Réaffiche le bouton bleu au retour
     }
 
-    function minimizeModal() {
-        modal.style.display = 'none';
-        document.body.style.overflow = '';
-    }
-
-    // Assignation des boutons
+    // Association des clics
     floatBtn.addEventListener('click', openModal);
-    btnFit.addEventListener('click', fitToScreen);
-    btnMinimize.addEventListener('click', minimizeModal);
+    btnFit.addEventListener('click', fitToScreen); 
     btnClose.addEventListener('click', closeModal);
 
-    // Raccourcis Clavier (F = Fit, 0 = Reset, Échap = Fermer)
-    const handleKeyDown = (e) => {
-        if (modal.style.display === 'flex') {
-            if (e.key === 'Escape') closeModal();
-            else if (e.key.toLowerCase() === 'f') fitToScreen();
-            else if (e.key === '0') resetView();
-        }
+    const handleKeyDown = (e) => { 
+        if (modal.style.display === 'flex') { 
+            if (e.key === 'Escape') closeModal(); 
+            else if (e.key.toLowerCase() === 'f') fitToScreen(); 
+        } 
     };
-    window.addEventListener('keydown', handleKeyDown);
 
-    window.addEventListener('resize', () => {
-        if (modal.style.display === 'flex') fitToScreen();
-    });
+    win.addEventListener('keydown', handleKeyDown);
+    win.addEventListener('resize', () => { if (modal.style.display === 'flex') fitToScreen(); });
 
-    // 7. Fonction de destruction pour mise à jour propre du script
-    window.__cartoPanZoomInstance = {
-        destroy: () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            modal.remove();
+    win.__cartoPanZoomInstance = { 
+        destroy: () => { 
+            win.removeEventListener('keydown', handleKeyDown); 
+            modal.remove(); 
             floatBtn.remove();
-        }
+        } 
     };
 
-    // Ouverture automatique lors du premier lancement
-    openModal();
-    console.info('[Carto PanZoom - Plein Écran] Chargé. Utilisez le bouton flottant "Ouvrir la visionneuse" à tout moment pour charger le schéma courant.');
+    console.log("Visionneuse prête. Bouton bleu injecté avec succès.");
 })();
