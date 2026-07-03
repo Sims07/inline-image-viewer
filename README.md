@@ -7,10 +7,14 @@ Ce script JavaScript applicatif résout les contraintes d'ergonomie et d'afficha
 - 🔲 **Mode Plein Écran Dédié (Modal Window) :** S'affranchit des contraintes géométriques, des barres d'outils et des menus latéraux du site d'origine pour maximiser la surface d'affichage.
 - 🔍 **Zoom Molette & Double-Clic :** Zoom fluide centré précisément sur la position actuelle du curseur de la souris.
 - 🖱️ **Pan & Drag (Glisser-Déplacer) :** Navigation naturelle par glissement à la souris (clic gauche maintenu), fonctionnelle sur l'intégralité du schéma, y compris depuis les zones cliquables.
+- 🔍 **Zoom au Double-Clic :** Double-clic pour zoomer, centré précisément sur le point cliqué (`Alt` + double-clic pour dézoomer).
+- 🎯 **Indicateur de Zoom :** Le niveau de zoom actuel (%) est affiché en permanence dans la barre d'outils.
 - 🗺️ **Maintien des Liens Dynamiques (`<map>` / `<area>`) :** Recalcule au pixel près et en temps réel les coordonnées géométriques de chaque zone cliquable lors des déplacements et changements d'échelle. Les liens vers le référentiel d'architecture restent 100% fonctionnels.
+- 🧭 **Mini-Carte de Repérage (Minimap) :** Une vignette en bas à gauche du viewport affiche l'ensemble du schéma avec un cadre indiquant la zone actuellement visible. Cliquer sur la mini-carte permet de sauter directement à un endroit du diagramme, très utile en fort zoom sur les grands schémas.
 - 🖥️ **Boutons de Contrôle Express :**
   - **Ajuster (Touche `F`) :** Recadre et ajuste instantanément l'ensemble du schéma à la taille de l'écran.
-  - **Réduire :** Masque temporairement la visionneuse pour interagir avec le portail sous-jacent.
+  - **Taille Réelle (Touche `0`) :** Réinitialise l'échelle à 100% (1:1), centrée dans le viewport.
+  - **Réduire :** Masque temporairement la visionneuse (sans recharger ni perdre le zoom/la position) pour interagir avec le portail sous-jacent ; un clic sur le bouton flottant (devenu "🔽 Restaurer Visionneuse") la rétablit exactement où vous l'aviez laissée.
   - **Fermer (Touche `Échap`) :** Quitte proprement l'interface et réinitialise le comportement par défaut de la page.
 - 🔄 **Détection Automatique (Mode Écoute) :** Un bouton flottant discret reste persistant en bas à droite de l'écran. Lors d'un changement d'onglet ou de schéma sur le site parent, un simple clic dessus projette immédiatement le nouveau diagramme actif dans le viewport.
 
@@ -39,8 +43,10 @@ Lorsque la visionneuse est active au premier plan, vous pouvez piloter l'interfa
 | Touche | Action |
 | :---: | :--- |
 | <kbd>F</kbd> | **Fit to screen** : Adapte automatiquement le schéma à la zone d'affichage. |
-| <kbd>0</kbd> | **Taille Réelle** : Réinitialise l'échelle à 100% (1:1). |
+| <kbd>0</kbd> | **Taille Réelle** : Réinitialise l'échelle à 100% (1:1), centrée dans le viewport. |
 | <kbd>Échap</kbd> | **Fermer** : Ferme et décharge la fenêtre modale. |
+
+> ℹ️ Double-clic sur le schéma pour zoomer (centré sur le curseur) ; `Alt` + double-clic pour dézoomer.
 
 ---
 
@@ -66,6 +72,16 @@ Correctifs apportés dans `inline-image-viewer.js` :
 - Désactivation explicite (`draggable = false`) du drag natif sur l'image clonée et sur chaque `<area>` du `usemap`.
 
 ➡️ Le Pan fonctionne désormais de façon homogène sur l'intégralité du schéma, y compris depuis les boîtes cliquables.
+
+### v1.2 — Ergonomie desktop : repérage, zoom précis et continuité de navigation
+Quatre améliorations pour un meilleur usage sur poste de travail (desktop) :
+- **Raccourci `0` (Taille Réelle) implémenté** : la touche était documentée mais absente du code ; elle réinitialise désormais l'échelle à 100%, centrée dans le viewport.
+- **Bouton "Réduire" rendu fonctionnel** : masque la visionneuse sans recharger le diagramme ni perdre le zoom/la position en cours, pour consulter le portail sous-jacent puis reprendre exactement où vous étiez (le bouton flottant devient "🔽 Restaurer Visionneuse").
+- **Zoom au double-clic** : centré précisément sur le point cliqué (`Alt` + double-clic pour dézoomer), en complément du zoom molette.
+- **Indicateur de zoom** : affichage permanent du niveau de zoom (%) dans la barre d'outils.
+- **Mini-carte de repérage (minimap)** : vignette du schéma complet en bas à gauche du viewport, avec un cadre indiquant la zone visible ; cliquer dessus permet de sauter directement à un endroit du diagramme — un vrai gain sur les très grands schémas une fois zoomé.
+
+> Le support tactile (pan au doigt, pincement pour zoomer) n'a volontairement pas été implémenté : l'outil est utilisé exclusivement sur poste de travail desktop.
 
 ---
 
