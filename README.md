@@ -6,7 +6,7 @@ Ce script JavaScript applicatif résout les contraintes d'ergonomie et d'afficha
 
 - 🔲 **Mode Plein Écran Dédié (Modal Window) :** S'affranchit des contraintes géométriques, des barres d'outils et des menus latéraux du site d'origine pour maximiser la surface d'affichage.
 - 🔍 **Zoom Molette & Double-Clic :** Zoom fluide centré précisément sur la position actuelle du curseur de la souris.
-- 🖱️ **Pan & Drag (Glisser-Déplacer) :** Navigation naturelle par glissement à la souris (clic gauche maintenu).
+- 🖱️ **Pan & Drag (Glisser-Déplacer) :** Navigation naturelle par glissement à la souris (clic gauche maintenu), fonctionnelle sur l'intégralité du schéma, y compris depuis les zones cliquables.
 - 🗺️ **Maintien des Liens Dynamiques (`<map>` / `<area>`) :** Recalcule au pixel près et en temps réel les coordonnées géométriques de chaque zone cliquable lors des déplacements et changements d'échelle. Les liens vers le référentiel d'architecture restent 100% fonctionnels.
 - 🖥️ **Boutons de Contrôle Express :**
   - **Ajuster (Touche `F`) :** Recadre et ajuste instantanément l'ensemble du schéma à la taille de l'écran.
@@ -52,6 +52,20 @@ Le script s'appuie sur la structure DOM native du portail d'architecture :
 3. **Calcul matriciel affine :** À chaque interaction utilisateur, la fonction de transformation géométrique applique la formule suivante sur l'ensemble du tableau de points géodésiques des balises HTML `<area>` :
    X' = X × Scale + Tx  
    Y' = Y × Scale + Ty
+
+---
+
+## 🩹 Journal des correctifs
+
+### v1.1 — Correction du Pan & Drag sur les zones cliquables (`<area>`)
+Certains utilisateurs ne parvenaient pas à démarrer le glisser-déplacer (Pan) lorsque le clic partait d'une zone couverte par une balise `<area>` du `usemap` (c'est-à-dire une des boîtes cliquables du schéma). Le navigateur interceptait le clic pour démarrer son propre comportement natif de glissement de lien/image, avant que le moteur de Pan & Zoom ne puisse prendre la main.
+
+Correctifs apportés dans `inline-image-viewer.js` :
+- Ajout de `e.preventDefault()` dès le `mousedown` sur le viewport, pour empêcher le navigateur d'initier son drag natif.
+- Ajout d'un listener `dragstart` neutralisant tout drag HTML5 natif résiduel sur la zone de visualisation.
+- Désactivation explicite (`draggable = false`) du drag natif sur l'image clonée et sur chaque `<area>` du `usemap`.
+
+➡️ Le Pan fonctionne désormais de façon homogène sur l'intégralité du schéma, y compris depuis les boîtes cliquables.
 
 ---
 

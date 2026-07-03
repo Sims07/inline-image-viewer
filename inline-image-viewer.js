@@ -118,9 +118,15 @@
 
     viewport.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
+        e.preventDefault(); // FIX: empêche le navigateur de démarrer un drag natif (lien/image)
+                             // lorsque le clic part d'une zone <area> du usemap
         isDragging = true; viewport.style.cursor = 'grabbing';
         startX = e.clientX - tx; startY = e.clientY - ty;
     });
+
+    // FIX: filet de sécurité — neutralise tout drag HTML5 natif déclenché
+    // par le navigateur sur l'image ou les liens <area> qu'elle contient
+    viewport.addEventListener('dragstart', (e) => e.preventDefault());
 
     win.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
@@ -163,13 +169,17 @@
         content.innerHTML = '';
         imgClone = originalImg.cloneNode(true);
         Object.assign(imgClone.style, { maxWidth: 'unset', width: 'auto', height: 'auto', display: 'block' });
+        imgClone.draggable = false; // FIX: désactive le drag HTML5 natif sur l'image clonée
         
         const mapName = originalImg.getAttribute('usemap');
         if (mapName) {
             currentMap = doc.querySelector('map[name="' + mapName.trim().slice(1) + '"]');
             if (currentMap) {
                 const areas = currentMap.querySelectorAll('area[coords]');
-                areas.forEach(a => { if (!a.dataset.rawCoords) a.dataset.rawCoords = a.getAttribute('coords') || ''; });
+                areas.forEach(a => {
+                    if (!a.dataset.rawCoords) a.dataset.rawCoords = a.getAttribute('coords') || '';
+                    a.draggable = false; // FIX: désactive aussi le drag natif sur chaque area cliquable
+                });
                 imgClone.setAttribute('usemap', mapName);
             }
         }
