@@ -81,13 +81,24 @@
     toolbar.appendChild(title);
 
     const controls = doc.createElement('div');
-    controls.style.display = 'flex'; controls.style.gap = '10px';
+    controls.style.display = 'flex'; controls.style.gap = '10px'; controls.style.alignItems = 'center';
     toolbar.appendChild(controls);
 
+    // NOUVEAU : Indicateur de zoom (%) mis à jour en temps réel
+    const zoomIndicator = doc.createElement('span');
+    zoomIndicator.innerText = '100%';
+    Object.assign(zoomIndicator.style, {
+        color: '#aeaeb2', fontSize: '13px', fontWeight: '600',
+        minWidth: '46px', textAlign: 'center', padding: '4px 8px',
+        backgroundColor: '#2c2c2e', borderRadius: '6px'
+    });
+    controls.appendChild(zoomIndicator);
+
     const btnFit = doc.createElement('button'); btnFit.innerText = 'Ajuster (F)';
+    const btnReduce = doc.createElement('button'); btnReduce.innerText = 'Réduire'; // NOUVEAU
     const btnClose = doc.createElement('button'); btnClose.innerText = 'Fermer (Échap)';
 
-    [btnFit, btnClose].forEach(btn => {
+    [btnFit, btnReduce, btnClose].forEach(btn => {
         Object.assign(btn.style, {
             padding: '6px 14px', backgroundColor: '#2c2c2e', color: '#fff',
             border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500'
@@ -95,6 +106,7 @@
     });
     btnClose.style.backgroundColor = '#ff3b30';
     controls.appendChild(btnFit);
+    controls.appendChild(btnReduce);
     controls.appendChild(btnClose);
 
     // Zone de Pan & Zoom
@@ -106,14 +118,37 @@
     content.style.cssText = 'position: absolute; transform-origin: 0 0; left: 0px; top: 0px;';
     viewport.appendChild(content);
 
+    // NOUVEAU : Mini-carte de repérage (minimap)
+    const minimap = doc.createElement('div');
+    Object.assign(minimap.style, {
+        position: 'absolute', left: '16px', bottom: '16px',
+        border: '2px solid rgba(255,255,255,0.6)', borderRadius: '4px',
+        overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+        cursor: 'pointer', zIndex: '5', display: 'none' // affichée une fois le diagramme chargé
+    });
+    const minimapImg = doc.createElement('img');
+    minimapImg.style.cssText = 'display:block; pointer-events:none; user-select:none;';
+    minimapImg.draggable = false;
+    const minimapHighlight = doc.createElement('div');
+    Object.assign(minimapHighlight.style, {
+        position: 'absolute', border: '2px solid #007aff',
+        backgroundColor: 'rgba(0,122,255,0.15)', pointerEvents: 'none'
+    });
+    minimap.appendChild(minimapImg);
+    minimap.appendChild(minimapHighlight);
+    viewport.appendChild(minimap);
+    let minimapMeta = null;
+
     // ==========================================
     // 4. MOTEUR DE PAN & ZOOM
     // ==========================================
     let scale = 1, tx = 0, ty = 0, isDragging = false, startX = 0, startY = 0;
-    let imgClone = null, currentMap = null;
+    let imgClone = null, currentMap = null, isMinimized = false;
 
     function updateTransform() {
         content.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+        zoomIndicator.innerText = Math.round(scale * 100) + '%'; // NOUVEAU
+        updateMinimapHighlight(); // NOUVEAU
     }
 
     viewport.addEventListener('mousedown', (e) => {
@@ -148,6 +183,23 @@
         updateTransform();
     }, { passive: false });
 
+    // NOUVEAU : Zoom au double-clic (centré sur le point cliqué).
+    // Alt + double-clic pour dézoomer. N'interfère pas avec les zones <area>
+    // cliquables : sur celles-ci, le premier clic déclenche déjà la navigation
+    // du lien avant qu'un double-clic ne puisse se former.
+    viewport.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left; const mouseY = e.clientY - rect.top;
+        const zoomFactor = e.altKey ? (1 / 1.6) : 1.6;
+        const newScale = scale * zoomFactor;
+        if (newScale < 0.1 || newScale > 10) return;
+        tx = mouseX - (mouseX - tx) * zoomFactor;
+        ty = mouseY - (mouseY - ty) * zoomFactor;
+        scale = newScale;
+        updateTransform();
+    });
+
     function fitToScreen() {
         if (!imgClone || imgClone.naturalWidth === 0) return;
         scale = Math.min(viewport.clientWidth / imgClone.naturalWidth, viewport.clientHeight / imgClone.naturalHeight, 1);
@@ -155,6 +207,70 @@
         ty = (viewport.clientHeight - imgClone.naturalHeight * scale) / 2;
         updateTransform();
     }
+
+    // NOUVEAU : Retour à la taille réelle (100%), raccourci touche "0"
+    function resetZoom() {
+        if (!imgClone || imgClone.naturalWidth === 0) return;
+        scale = 1;
+        tx = (viewport.clientWidth - imgClone.naturalWidth) / 2;
+        ty = (viewport.clientHeight - imgClone.naturalHeight) / 2;
+        updateTransform();
+    }
+
+    // NOUVEAU : Construction de la mini-carte à partir du diagramme chargé
+    function buildMinimap() {
+        if (!imgClone || !imgClone.naturalWidth) { minimap.style.display = 'none'; return; }
+        minimapImg.src = imgClone.currentSrc || imgClone.src;
+        const naturalW = imgClone.naturalWidth;
+        const naturalH = imgClone.naturalHeight;
+        const mmWidth = 200;
+        const mmHeight = Math.round(mmWidth * (naturalH / naturalW));
+        minimap.style.width = mmWidth + 'px';
+        minimap.style.height = mmHeight + 'px';
+        minimapImg.style.width = mmWidth + 'px';
+        minimapImg.style.height = mmHeight + 'px';
+        minimapMeta = { naturalW, naturalH, mmScale: mmWidth / naturalW };
+        minimap.style.display = 'block';
+        updateMinimapHighlight();
+    }
+
+    // NOUVEAU : Mise à jour du cadre de repérage sur la mini-carte
+    function updateMinimapHighlight() {
+        if (!minimapMeta) return;
+        const { naturalW, naturalH, mmScale } = minimapMeta;
+        const leftDiagram = -tx / scale;
+        const topDiagram = -ty / scale;
+        const widthDiagram = viewport.clientWidth / scale;
+        const heightDiagram = viewport.clientHeight / scale;
+
+        const mmW = naturalW * mmScale;
+        const mmH = naturalH * mmScale;
+
+        let rectLeft = Math.max(0, Math.min(leftDiagram * mmScale, mmW));
+        let rectTop = Math.max(0, Math.min(topDiagram * mmScale, mmH));
+        let rectWidth = Math.max(4, Math.min(widthDiagram * mmScale, mmW - rectLeft));
+        let rectHeight = Math.max(4, Math.min(heightDiagram * mmScale, mmH - rectTop));
+
+        Object.assign(minimapHighlight.style, {
+            left: rectLeft + 'px', top: rectTop + 'px',
+            width: rectWidth + 'px', height: rectHeight + 'px'
+        });
+    }
+
+    // NOUVEAU : Clic sur la mini-carte pour se déplacer directement à cet endroit
+    minimap.addEventListener('click', (e) => {
+        if (!minimapMeta) return;
+        e.stopPropagation();
+        const rect = minimap.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+        const diagramX = clickX / minimapMeta.mmScale;
+        const diagramY = clickY / minimapMeta.mmScale;
+        tx = viewport.clientWidth / 2 - diagramX * scale;
+        ty = viewport.clientHeight / 2 - diagramY * scale;
+        updateTransform();
+    });
+    minimap.addEventListener('mousedown', (e) => e.stopPropagation()); // évite de déclencher le pan du fond
 
     // ==========================================
     // 5. GESTION DES ÉVÉNEMENTS D'OUVERTURE
@@ -202,7 +318,9 @@
             modal.style.display = 'flex'; 
             doc.body.style.overflow = 'hidden'; 
             floatBtn.style.display = 'none'; // Masque le bouton quand le plein écran est actif
-            setTimeout(fitToScreen, 50); 
+            isMinimized = false;
+            floatBtn.innerText = '👁️ Visionneuse Carto';
+            setTimeout(() => { fitToScreen(); buildMinimap(); }, 50); 
         } 
     }
     
@@ -216,17 +334,40 @@
         modal.style.display = 'none'; 
         doc.body.style.overflow = ''; 
         floatBtn.style.display = 'block'; // Réaffiche le bouton bleu au retour
+        isMinimized = false;
+        floatBtn.innerText = '👁️ Visionneuse Carto';
+    }
+
+    // NOUVEAU : Réduction — masque la modale SANS recharger le diagramme,
+    // pour consulter le portail sous-jacent puis reprendre exactement où on était
+    function minimizeModal() {
+        modal.style.display = 'none';
+        doc.body.style.overflow = '';
+        isMinimized = true;
+        floatBtn.style.display = 'block';
+        floatBtn.innerText = '🔽 Restaurer Visionneuse';
+    }
+
+    function restoreModal() {
+        modal.style.display = 'flex';
+        doc.body.style.overflow = 'hidden';
+        floatBtn.style.display = 'none';
+        isMinimized = false;
+        floatBtn.innerText = '👁️ Visionneuse Carto';
+        updateTransform(); // réajuste l'indicateur de zoom/minimap si la fenêtre a été redimensionnée
     }
 
     // Association des clics
-    floatBtn.addEventListener('click', openModal);
+    floatBtn.addEventListener('click', () => { isMinimized ? restoreModal() : openModal(); }); // NOUVEAU : gère la réduction
     btnFit.addEventListener('click', fitToScreen); 
+    btnReduce.addEventListener('click', minimizeModal); // NOUVEAU
     btnClose.addEventListener('click', closeModal);
 
     const handleKeyDown = (e) => { 
         if (modal.style.display === 'flex') { 
             if (e.key === 'Escape') closeModal(); 
             else if (e.key.toLowerCase() === 'f') fitToScreen(); 
+            else if (e.key === '0') resetZoom(); // NOUVEAU : raccourci taille réelle
         } 
     };
 
