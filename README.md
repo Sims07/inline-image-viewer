@@ -10,7 +10,7 @@ Ce script JavaScript applicatif résout les contraintes d'ergonomie et d'afficha
 - 🔍 **Zoom au Double-Clic :** Double-clic pour zoomer, centré précisément sur le point cliqué (`Alt` + double-clic pour dézoomer).
 - 🎯 **Indicateur de Zoom :** Le niveau de zoom actuel (%) est affiché en permanence dans la barre d'outils.
 - 🗺️ **Maintien des Liens Dynamiques (`<map>` / `<area>`) :** Recalcule au pixel près et en temps réel les coordonnées géométriques de chaque zone cliquable lors des déplacements et changements d'échelle. Les liens vers le référentiel d'architecture restent 100% fonctionnels.
-- 🧭 **Mini-Carte de Repérage (Minimap) :** Une vignette en bas à gauche du viewport affiche l'ensemble du schéma avec un cadre indiquant la zone actuellement visible. Cliquer sur la mini-carte permet de sauter directement à un endroit du diagramme, très utile en fort zoom sur les grands schémas.
+- 🧭 **Mini-Carte de Repérage (Minimap) :** Une vignette en bas à gauche du viewport affiche l'ensemble du schéma avec un cadre indiquant la zone actuellement visible. Un simple clic saute directement à un endroit du diagramme, et un **glisser-déposer (drag & drop)** dans la mini-carte permet de parcourir le schéma en continu — très utile en fort zoom sur les grands schémas.
 - 🖥️ **Boutons de Contrôle Express :**
   - **Ajuster (Touche `F`) :** Recadre et ajuste instantanément l'ensemble du schéma à la taille de l'écran.
   - **Taille Réelle (Touche `0`) :** Réinitialise l'échelle à 100% (1:1), centrée dans le viewport.
@@ -82,6 +82,9 @@ Quatre améliorations pour un meilleur usage sur poste de travail (desktop) :
 - **Mini-carte de repérage (minimap)** : vignette du schéma complet en bas à gauche du viewport, avec un cadre indiquant la zone visible ; cliquer dessus permet de sauter directement à un endroit du diagramme — un vrai gain sur les très grands schémas une fois zoomé.
 
 > Le support tactile (pan au doigt, pincement pour zoomer) n'a volontairement pas été implémenté : l'outil est utilisé exclusivement sur poste de travail desktop.
+
+### v1.3 — Glisser-déposer dans la mini-carte
+La mini-carte ne permettait initialement qu'un saut au clic. Elle supporte désormais le **glisser-déposer continu** : cliquer-maintenir puis déplacer la souris dans la mini-carte fait défiler le schéma en temps réel, sans avoir à cliquer répétitivement. Le curseur passe en mode "main" (`grab`/`grabbing`) pour refléter ce comportement, cohérent avec le Pan du viewport principal.
 
 ---
 

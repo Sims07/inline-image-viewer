@@ -124,7 +124,7 @@
         position: 'absolute', left: '16px', bottom: '16px',
         border: '2px solid rgba(255,255,255,0.6)', borderRadius: '4px',
         overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-        cursor: 'pointer', zIndex: '5', display: 'none' // affichée une fois le diagramme chargé
+        cursor: 'grab', zIndex: '5', display: 'none' // affichée une fois le diagramme chargé
     });
     const minimapImg = doc.createElement('img');
     minimapImg.style.cssText = 'display:block; pointer-events:none; user-select:none;';
@@ -164,12 +164,22 @@
     viewport.addEventListener('dragstart', (e) => e.preventDefault());
 
     win.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        tx = e.clientX - startX; ty = e.clientY - startY;
-        updateTransform();
+        if (isDragging) {
+            tx = e.clientX - startX; ty = e.clientY - startY;
+            updateTransform();
+        }
+        if (isMinimapDragging) { // NOUVEAU : suivi continu du glisser-déposer sur la mini-carte
+            navigateMinimapTo(e);
+        }
     });
 
-    win.addEventListener('mouseup', () => { isDragging = false; viewport.style.cursor = 'grab'; });
+    win.addEventListener('mouseup', () => {
+        isDragging = false; viewport.style.cursor = 'grab';
+        if (isMinimapDragging) { // NOUVEAU
+            isMinimapDragging = false;
+            minimap.style.cursor = 'grab';
+        }
+    });
 
     viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
@@ -257,20 +267,32 @@
         });
     }
 
-    // NOUVEAU : Clic sur la mini-carte pour se déplacer directement à cet endroit
-    minimap.addEventListener('click', (e) => {
+    // NOUVEAU : Navigation par clic OU glisser-déposer continu dans la mini-carte
+    let isMinimapDragging = false;
+
+    function navigateMinimapTo(e) {
         if (!minimapMeta) return;
-        e.stopPropagation();
         const rect = minimap.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top;
+        const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const clickY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
         const diagramX = clickX / minimapMeta.mmScale;
         const diagramY = clickY / minimapMeta.mmScale;
         tx = viewport.clientWidth / 2 - diagramX * scale;
         ty = viewport.clientHeight / 2 - diagramY * scale;
         updateTransform();
+    }
+
+    minimap.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation(); // évite de déclencher le pan du fond en même temps
+        e.preventDefault();
+        isMinimapDragging = true;
+        minimap.style.cursor = 'grabbing';
+        navigateMinimapTo(e);
     });
-    minimap.addEventListener('mousedown', (e) => e.stopPropagation()); // évite de déclencher le pan du fond
+
+    minimap.addEventListener('dragstart', (e) => e.preventDefault()); // FIX cohérent avec le viewport principal
+    minimapImg.draggable = false;
 
     // ==========================================
     // 5. GESTION DES ÉVÉNEMENTS D'OUVERTURE
